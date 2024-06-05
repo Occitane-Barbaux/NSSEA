@@ -140,6 +140,7 @@ def nslaw_fit( lY , clim , verbose = False, light=False ):
 		law = clim.ns_law
 		law.fit(Y.values,X.values)
 		law_coef.loc[:,"BE",model] = law.get_params()
+		coef_be = law_coef.loc[:,"BE",model].values.ravel()
 		if not light:
 			for s in sample:
 				pb.print()
@@ -152,7 +153,7 @@ def nslaw_fit( lY , clim , verbose = False, light=False ):
 					tYs = tY.values[idx]
 					Ys = Y.iloc[idx].values
 					Xs = clim.X.loc[tYs,s,"F",model].values
-					law.fit(Ys,Xs)
+					law.fit(Ys,Xs, init = coef_be)
 					fit_is_valid = law.check( Y.values.squeeze() , X.values.squeeze() , np.arange( 0 , tY.size , 1 ) )
 				law_coef.loc[:,s,model] = law.get_params()
 	
