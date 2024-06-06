@@ -125,7 +125,7 @@ from .__nsstats     import add_bias
 from .__constraints import constrain_covariate
 from .__constraints import constrain_law
 from .__constraints import constraint_C0
-
+from .__constraints import stan_constrain
 
 
 

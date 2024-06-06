@@ -94,6 +94,8 @@ import scipy.optimize as sco
 import scipy.stats as sc
 import pandas as pd
 import xarray as xr
+from cmdstanpy import CmdStanModel
+
 
 from.__multi_model import MultiModel
 from .__tools import matrix_squareroot
@@ -667,5 +669,79 @@ def constraint_C0( climIn , Yo , verbose = False ): ##{{{
 	return climIn.copy()
 ##}}}
 
+# Version originale Contrainte STAN
+#Only for GEV original (covariable for mu and sigma, exponential sigma)
+def stan_constrain(climIn,Yo,stan_file, **kwargs):
+	"""
+	NSSEA.constrain_law
+	===================
+	Constrain the law_coef of the clim with a MCMC approach.
+	
+	Arguments
+	---------
+	climIn : [NSSEA.Climatology] clim variable
+	Yo       : [pandas.DataFrame] Observations of ns_law
+	keep     : [ "all", "ess", or a float between 0 and 1] If keep < 1, only a ratio of 
+	          keep covariates is used, and many coefficients are drawn for the
+	          same covariate. Faster, but can reduce confidence interval
+	          uncertainty.
+	n_mcmc_draw_min: [integer] Minimum number of coef to draw for each covariate
+	n_mcmc_draw_max: [integer] Maximum number of coef to draw for each covariate
+	verbose  : [bool] Print (or not) state of execution
+	
+	Return
+	------
+	clim : [NSSEA.Climatology] A copy is returned
+	"""
+	clim      = climIn.copy()
+    
+	#data
+	X=clim.X.loc[Yo.index,'BE',"F","Multi_Synthesis"].values.squeeze()
+	N_X=len(X)
+	Y=Yo.values.squeeze()
+	N=len(Y)
+	p_m   = clim.data["mm_mean"][-clim.n_coef:].values
+	p_cov    = clim.data["mm_cov"][-clim.n_coef:,-clim.n_coef:].values
 
+	u,s,v = np.linalg.svd(p_cov)
+	p_std = u @ np.sqrt(np.diag(s)) @ v.T
+    
+	#clim para
+	n_features = clim.ns_law.n_ns_params
+	ns_params_names = clim.ns_law.get_params_names()
+	n_ess = kwargs.get("n_ess")
+	if n_ess is None:
+        	n_ess = 10
+      
+	sample_names =[s+"_"+str(i) for i in range(n_ess) for s in clim.sample[1:]]+["BE"]
+	law_coef_bay   = xr.DataArray( np.zeros( (n_features,(clim.n_sample)*n_ess + 1,1) ) ,
+		coords = [ ns_params_names , sample_names , ["Multi_Synthesis"] ] ,
+		dims = ["coef","sample_MCMC","model"] )
+    
+    
+    
+	newDF = pd.DataFrame() #creates a new dataframe that's empty
+	samples = clim.X.loc[Yo.index,:,"F","Multi_Synthesis"].sample.values.squeeze()[1::]
+
+	#compile stan file
+	model = CmdStanModel(stan_file=stan_file)
+	#Run constraint with varying covariable
+	for s in samples:
+		print(s)
+		X=clim.X.loc[Yo.index,s,"F","Multi_Synthesis"].values.squeeze()
+		data = {"N":N,
+		"Y": Y,
+		"N_X": N_X,
+		"X": X,
+		"p_m":p_m,
+		"p_cov":p_std
+		}
+		fit = model.sample(data=data,iter_sampling=int(n_ess/4),show_progress=False)
+		df = fit.draws_pd()
+		sub_def=df[['para[1]','para[2]','para[3]','para[4]','para[5]']]
+		law_coef_bay.loc[:,[s+"_"+str(i) for i in range(n_ess)], "Multi_Synthesis"] = sub_def.T
+	clim.law_coef=law_coef_bay
+	clim.law_coef.loc[:,"BE",:] = clim.law_coef[:,1:,:].median( dim = "sample_MCMC" )
+	clim.BE_is_median = True
+	return clim
 
