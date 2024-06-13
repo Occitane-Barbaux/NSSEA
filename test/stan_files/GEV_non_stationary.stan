@@ -19,7 +19,7 @@ data {
   int N_X; 
   vector[N_X] X; 
   vector[5] p_m ; 
-  matrix[5,5] p_cov ; 
+  matrix[5,5] p_std ; 
 }
 
 
@@ -36,7 +36,7 @@ transformed parameters {
   real<lower=-1, upper=1> xi;
   
   vector[5] para;
-  para = p_m+ p_cov*tirage;
+  para = p_m+ p_std*tirage;
   mu =para[2]*X+para[1];
   sigma =exp(para[4]*X+para[3]);
   xi= para[5];

@@ -734,7 +734,7 @@ def stan_constrain(climIn,Yo,stan_file, **kwargs):
 		"N_X": N_X,
 		"X": X,
 		"p_m":p_m,
-		"p_cov":p_std
+		"p_std":p_std
 		}
 		fit = model.sample(data=data,iter_sampling=int(n_ess/4),show_progress=False)
 		df = fit.draws_pd()
